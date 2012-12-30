@@ -10,7 +10,7 @@ Gem::Specification.new do |gem|
   gem.email         = ["moe@busyloop.net"]
   gem.description   = %q{Control your Mac keyboard LEDs (capslock, numlock)}
   gem.summary       = %q{Control your Mac keyboard LEDs (capslock, numlock)}
-  gem.homepage      = ""
+  gem.homepage      = "https://github.com/busyloop/maclight"
 
   gem.files         = `git ls-files`.split($/)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
