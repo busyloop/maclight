@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+require 'maclight/cli'
+
+MacLight::Cli.start
+
