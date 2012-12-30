@@ -12,7 +12,7 @@ MacLight lets you control the keyboard-LEDs (capslock, numlock) on your Mac.
 
 ## Usage
 
-```bash
+```
 $ maclight --help
 
 Usage: maclight <command>
