@@ -4,7 +4,7 @@ MacLight lets you control the keyboard-LEDs (capslock, numlock) on your Mac.
 
 ## Screenshot
 
-![capslock](http://github.com/busyloop/maclight/raw/master/ass/screenshot_capslock.jpg)
+![capslock](https://github.com/busyloop/maclight/raw/master/ass/screenshot_capslock.jpg?raw=true)
 
 ## Installation
 
@@ -18,7 +18,7 @@ $ maclight --help
 Usage: maclight <command>
 
 MacLight v1.0.0 - LED control utility
- 
+
 Options:
    --version:   Print version and exit
   --help, -h:   Show this message
