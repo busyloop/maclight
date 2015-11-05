@@ -19,4 +19,5 @@ Gem::Specification.new do |gem|
   gem.extensions    = ['ext/maclight/extconf.rb']
 
   gem.add_dependency 'optix', '>= 1.2.2'
+  gem.add_development_dependency 'rake', '~> 10.1.0'
 end

@@ -18,11 +18,13 @@ module MacLight
     text "Toggle keyboard LEDs (capslock, numlock)"
     opt :capslock, "Toggle capslock LED", :default => false
     opt :numlock, "Toggle numlock LED", :default => false
+    opt :verbose, "Print current state of capslock, numlock"
     parent "keyboard", "Control keyboard LEDs"
     def toggle(cmd, opts, argv)
-      raise Optix::HelpNeeded unless opts.values_at(:capslock, :numlock).any?
+      raise Optix::HelpNeeded unless opts.values_at(:capslock, :numlock, :verbose).any?
       MacLight.capslock(!MacLight.capslock) if opts[:capslock]
       MacLight.numlock(!MacLight.numlock) if opts[:numlock]
+      puts "#{MacLight.capslock ? 1:0} #{MacLight.numlock ? 1:0}" if opts[:verbose]
     end
 
     desc "Set keyboard LEDs state"
@@ -30,7 +32,7 @@ module MacLight
     opt :capslock, "Set capslock LED (0|1)", :type => Integer
     opt :numlock, "Set numlock LED (0|1)", :type => Integer
     opt :verbose, "Print current state of capslock, numlock"
-    parent "keyboard", "Control keyboard LEDs"
+    parent "keyboard"
     def set(cmd, opts, argv)
       raise Optix::HelpNeeded unless opts.values_at(:capslock, :numlock, :verbose).any?
       MacLight.capslock(1 == opts[:capslock]) unless opts[:capslock].nil?
