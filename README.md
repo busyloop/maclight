@@ -46,6 +46,11 @@ MacLight.capslock(false)
 MacLight.numlock(false)
 ```
 
+## Notice
+
+MacLight only works for external keyboards.
+It does not work for the builtin keyboards on Apple laptops!
+
 ## Credits
 
 MacLight is based on HID demonstration code by [Amit Singh](http://googlemac.blogspot.de/2008/04/manipulating-keyboard-leds-through.html).
