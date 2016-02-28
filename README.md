@@ -47,5 +47,5 @@ MacLight.all_leds(false)
 ## Notice
 
 MacLight can currently only toggle all LEDs at once
-and has not been tested on OSX versions older than 10.11.3 (El Capitan).
+and has only been tested on OSX 10.11.3 (El Capitan).
 
