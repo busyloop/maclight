@@ -1,6 +1,6 @@
 # MacLight [![Dependency Status](https://gemnasium.com/busyloop/maclight.png)](https://gemnasium.com/busyloop/maclight)
 
-MacLight lets you control the keyboard-LEDs (capslock, numlock) on your Mac.
+MacLight lets you control the keyboard LEDs on your Mac or Macbook.
 
 ## Screenshot
 
@@ -17,7 +17,7 @@ $ maclight --help
 
 Usage: maclight <command>
 
-MacLight v1.0.0 - LED control utility
+MacLight v3.0.0 - LED control utility
 
 Options:
    --version:   Print version and exit
@@ -35,22 +35,17 @@ Commands:
 
 require 'maclight'
 
-# Turn both LEDs on
-MacLight.capslock(true)
-MacLight.numlock(true)
+# Turn LEDs on
+MacLight.all_leds(true)
 
 sleep 2
 
-# Turn both LEDs off
-MacLight.capslock(false)
-MacLight.numlock(false)
+# Turn LEDs off
+MacLight.all_leds(false)
 ```
 
 ## Notice
 
-MacLight only works for external keyboards.
-It does not work for the builtin keyboards on Apple laptops!
+MacLight can currently only toggle all LEDs at once
+and has not been tested on OSX versions older than 10.11.3 (El Capitan).
 
-## Credits
-
-MacLight is based on HID demonstration code by [Amit Singh](http://googlemac.blogspot.de/2008/04/manipulating-keyboard-leds-through.html).

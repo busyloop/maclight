@@ -1,328 +1,288 @@
-/*
- * keyboard_leds.c
- * Manipulate keyboard LEDs (capslock and numlock) programmatically.
- *
- * gcc -Wall -o keyboard_leds keyboard_leds.c -framework IOKit
- *     -framework CoreFoundation
- *
- * Copyright (c) 2007,2008 Amit Singh. All Rights Reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *  1. Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *  2. Redistributions in binary form must reproduce the above copyright
- *     notice, this list of conditions and the following disclaimer in the
- *     documentation and/or other materials provided with the distribution.
- *     
- *  THIS SOFTWARE IS PROVIDED BY AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- *  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- *  ARE DISCLAIMED.  IN NO EVENT SHALL AUTHOR OR CONTRIBUTORS BE LIABLE
- *  FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- *  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- *  OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- *  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- *  OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- *  SUCH DAMAGE.
- */
+//     File: main.c
+// Abstract: source code for HID LED test tool
+//  Version: 1.3
+//
+// Disclaimer: IMPORTANT:  This Apple software is supplied to you by Apple
+// Inc. ("Apple") in consideration of your agreement to the following
+// terms, and your use, installation, modification or redistribution of
+// this Apple software constitutes acceptance of these terms.  If you do
+// not agree with these terms, please do not use, install, modify or
+// redistribute this Apple software.
+//
+// In consideration of your agreement to abide by the following terms, and
+// subject to these terms, Apple grants you a personal, non-exclusive
+// license, under Apple's copyrights in this original Apple software (the
+// "Apple Software"), to use, reproduce, modify and redistribute the Apple
+// Software, with or without modifications, in source and/or binary forms;
+// provided that if you redistribute the Apple Software in its entirety and
+// without modifications, you must retain this notice and the following
+// text and disclaimers in all such redistributions of the Apple Software.
+// Neither the name, trademarks, service marks or logos of Apple Inc. may
+// be used to endorse or promote products derived from the Apple Software
+// without specific prior written permission from Apple.  Except as
+// expressly stated in this notice, no other rights or licenses, express or
+// implied, are granted by Apple herein, including but not limited to any
+// patent rights that may be infringed by your derivative works or by other
+// works in which the Apple Software may be incorporated.
+//
+// The Apple Software is provided by Apple on an "AS IS" basis.  APPLE
+// MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
+// THE IMPLIED WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY AND FITNESS
+// FOR A PARTICULAR PURPOSE, REGARDING THE APPLE SOFTWARE OR ITS USE AND
+// OPERATION ALONE OR IN COMBINATION WITH YOUR PRODUCTS.
+//
+// IN NO EVENT SHALL APPLE BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL
+// OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) ARISING IN ANY WAY OUT OF THE USE, REPRODUCTION,
+// MODIFICATION AND/OR DISTRIBUTION OF THE APPLE SOFTWARE, HOWEVER CAUSED
+// AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
+// STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+//
+// Copyright (C) 2015 Apple Inc. All Rights Reserved.
+//
+// ****************************************************
 
 /* rubyfied by moe@busyloop.net */
+#pragma mark -
+#pragma mark * complation directives *
+// ----------------------------------------------------
+/* rubyfied by moe@busyloop.net */
 
-#include <stdio.h>
-#include <getopt.h>
-#include <stdlib.h>
-#include <sysexits.h>
-#include <mach/mach_error.h>
+#ifndef FALSE
+#define FALSE 0
+#define TRUE !FALSE
+#endif
 
-#include <IOKit/IOCFPlugIn.h>
+// ****************************************************
+#pragma mark -
+#pragma mark * includes & imports *
+// ----------------------------------------------------
+
+#include <CoreFoundation/CoreFoundation.h>
+#include <Carbon/Carbon.h>
 #include <IOKit/hid/IOHIDLib.h>
-#include <IOKit/hid/IOHIDUsageTables.h>
 
 #include "ruby.h"
 
-static IOHIDElementCookie capslock_cookie = (IOHIDElementCookie)0;
-static IOHIDElementCookie numlock_cookie  = (IOHIDElementCookie)0;
-static int capslock_value = -1;
-static int numlock_value  = -1;
-
-void         usage(void);
-inline void  print_errmsg_if_io_err(int expr, char* msg);
-inline void  print_errmsg_if_err(int expr, char* msg);
-
-io_service_t find_a_keyboard(void);
-void         find_led_cookies(IOHIDDeviceInterface122** handle);
-void         create_hid_interface(io_object_t hidDevice,
-                                  IOHIDDeviceInterface*** hdi);
-int          manipulate_led(UInt32 whichLED, SInt32 value);
-
-inline void
-print_errmsg_if_io_err(int expr, char* msg)
+// ****************************************************
+#pragma mark -
+#pragma mark * typedef's, struct's, enums, defines, etc. *
+// ----------------------------------------------------
+// function to create a matching dictionary for usage page & usage
+static CFMutableDictionaryRef hu_CreateMatchingDictionaryUsagePageUsage( Boolean isDeviceNotElement,
+																		UInt32 inUsagePage,
+																		UInt32 inUsage )
 {
-    IOReturn err = (expr);
+	// create a dictionary to add usage page / usages to
+	CFMutableDictionaryRef result = CFDictionaryCreateMutable( kCFAllocatorDefault,
+															  0,
+															  &kCFTypeDictionaryKeyCallBacks,
+															  &kCFTypeDictionaryValueCallBacks );
 
-    if (err != kIOReturnSuccess) {
-        fprintf(stderr, "*** %s - %s(%x, %d).\n", msg, mach_error_string(err),
-                err, err & 0xffffff);
-        fflush(stderr);
-        exit(EX_OSERR);
-    }
-}
+	if ( result ) {
+		if ( inUsagePage ) {
+			// Add key for device type to refine the matching dictionary.
+			CFNumberRef pageCFNumberRef = CFNumberCreate( kCFAllocatorDefault, kCFNumberIntType, &inUsagePage );
 
-inline void
-print_errmsg_if_err(int expr, char* msg)
+			if ( pageCFNumberRef ) {
+				if ( isDeviceNotElement ) {
+					CFDictionarySetValue( result, CFSTR( kIOHIDDeviceUsagePageKey ), pageCFNumberRef );
+				} else {
+					CFDictionarySetValue( result, CFSTR( kIOHIDElementUsagePageKey ), pageCFNumberRef );
+				}
+				CFRelease( pageCFNumberRef );
+
+				// note: the usage is only valid if the usage page is also defined
+				if ( inUsage ) {
+					CFNumberRef usageCFNumberRef = CFNumberCreate( kCFAllocatorDefault, kCFNumberIntType, &inUsage );
+
+					if ( usageCFNumberRef ) {
+						if ( isDeviceNotElement ) {
+							CFDictionarySetValue( result, CFSTR( kIOHIDDeviceUsageKey ), usageCFNumberRef );
+						} else {
+							CFDictionarySetValue( result, CFSTR( kIOHIDElementUsageKey ), usageCFNumberRef );
+						}
+						CFRelease( usageCFNumberRef );
+					} else {
+						fprintf( stderr, "%s: CFNumberCreate( usage ) failed.", __PRETTY_FUNCTION__ );
+					}
+				}
+			} else {
+				fprintf( stderr, "%s: CFNumberCreate( usage page ) failed.", __PRETTY_FUNCTION__ );
+			}
+		}
+	} else {
+		fprintf( stderr, "%s: CFDictionaryCreateMutable failed.", __PRETTY_FUNCTION__ );
+	}
+	return result;
+}	// hu_CreateMatchingDictionaryUsagePageUsage
+
+//int main( int argc, const char * argv[] )
+int manipulate_led( int which_led, int led_value )
 {
-    if (expr) {
-        fprintf(stderr, "*** %s.\n", msg);
-        fflush(stderr);
-        exit(EX_OSERR);
-    }
-}
+#pragma unused ( argc, argv )
+	IOHIDDeviceRef * tIOHIDDeviceRefs = nil;
 
-io_service_t
-find_a_keyboard(void)
-{
-    io_service_t result = (io_service_t)0;
+	// create a IO HID Manager reference
+	IOHIDManagerRef tIOHIDManagerRef = IOHIDManagerCreate( kCFAllocatorDefault, kIOHIDOptionsTypeNone );
+	require( tIOHIDManagerRef, Oops );
 
-    CFNumberRef usagePageRef = (CFNumberRef)0;
-    CFNumberRef usageRef = (CFNumberRef)0;
-    CFMutableDictionaryRef matchingDictRef = (CFMutableDictionaryRef)0;
+	// Create a device matching dictionary
+	CFDictionaryRef matchingCFDictRef = hu_CreateMatchingDictionaryUsagePageUsage( TRUE,
+																				  kHIDPage_GenericDesktop,
+																				  kHIDUsage_GD_Keyboard );
+	require( matchingCFDictRef, Oops );
 
-    if (!(matchingDictRef = IOServiceMatching(kIOHIDDeviceKey))) {
-        return result;
-    }
+	// set the HID device matching dictionary
+	IOHIDManagerSetDeviceMatching( tIOHIDManagerRef, matchingCFDictRef );
 
-    UInt32 usagePage = kHIDPage_GenericDesktop;
-    UInt32 usage = kHIDUsage_GD_Keyboard;
+	if ( matchingCFDictRef ) {
+		CFRelease( matchingCFDictRef );
+	}
 
-    if (!(usagePageRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType,
-                                        &usagePage))) {
-        goto out;
-    }
+	// Now open the IO HID Manager reference
+	IOReturn tIOReturn = IOHIDManagerOpen( tIOHIDManagerRef, kIOHIDOptionsTypeNone );
+	require_noerr( tIOReturn, Oops );
 
-    if (!(usageRef = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType,
-                                    &usage))) {
-        goto out;
-    }
+	// and copy out its devices
+	CFSetRef deviceCFSetRef = IOHIDManagerCopyDevices( tIOHIDManagerRef );
+	require( deviceCFSetRef, Oops );
 
-    CFDictionarySetValue(matchingDictRef, CFSTR(kIOHIDPrimaryUsagePageKey),
-                         usagePageRef);
-    CFDictionarySetValue(matchingDictRef, CFSTR(kIOHIDPrimaryUsageKey),
-                         usageRef);
+	// how many devices in the set?
+	CFIndex deviceIndex, deviceCount = CFSetGetCount( deviceCFSetRef );
 
-    result = IOServiceGetMatchingService(kIOMasterPortDefault, matchingDictRef);
+	// allocate a block of memory to extact the device ref's from the set into
+	tIOHIDDeviceRefs = malloc( sizeof( IOHIDDeviceRef ) * deviceCount );
+	if (!tIOHIDDeviceRefs) {
+		CFRelease(deviceCFSetRef);
+		deviceCFSetRef = NULL;
+		goto Oops;
+	}
 
-out:
-    if (usageRef) {
-        CFRelease(usageRef);
-    }
-    if (usagePageRef) {
-        CFRelease(usagePageRef);
-    }
+	// now extract the device ref's from the set
+	CFSetGetValues( deviceCFSetRef, (const void **) tIOHIDDeviceRefs );
+	CFRelease(deviceCFSetRef);
+	deviceCFSetRef = NULL;
 
-    return result;
-}
+	// before we get into the device loop we'll setup our element matching dictionary
+	matchingCFDictRef = hu_CreateMatchingDictionaryUsagePageUsage( FALSE, kHIDPage_LEDs, 0 );
+	require( matchingCFDictRef, Oops );
 
-void
-find_led_cookies(IOHIDDeviceInterface122** handle)
-{
-    IOHIDElementCookie cookie;
-    CFTypeRef          object;
-    long               number;
-    long               usage;
-    long               usagePage;
-    CFArrayRef         elements;
-    CFDictionaryRef    element;
-    IOReturn           result;
+	int pass;	// do 256 passes
+	//for ( pass = 0; pass < 256; pass++ ) {
+		Boolean delayFlag = FALSE;	// if we find an LED element we'll set this to TRUE
 
-    if (!handle || !(*handle)) {
-        return;
-    }
+		//printf( "pass = %d.\n", pass );
+		for ( deviceIndex = 0; deviceIndex < deviceCount; deviceIndex++ ) {
 
-    result = (*handle)->copyMatchingElements(handle, NULL, &elements);
+			// if this isn't a keyboard device...
+			if ( !IOHIDDeviceConformsTo( tIOHIDDeviceRefs[deviceIndex], kHIDPage_GenericDesktop, kHIDUsage_GD_Keyboard ) ) {
+				continue;	// ...skip it
+			}
 
-    if (result != kIOReturnSuccess) {
-        fprintf(stderr, "Failed to copy cookies.\n");
-        exit(1);
-    }
+			//printf( "	 device = %p.\n", tIOHIDDeviceRefs[deviceIndex] );
 
-    CFIndex i;
+			// copy all the elements
+			CFArrayRef elementCFArrayRef = IOHIDDeviceCopyMatchingElements( tIOHIDDeviceRefs[deviceIndex],
+																		   matchingCFDictRef,
+																		   kIOHIDOptionsTypeNone );
+			require( elementCFArrayRef, next_device );
 
-    for (i = 0; i < CFArrayGetCount(elements); i++) {
+			// for each device on the system these values are divided by the value ranges of all LED elements found
+			// for example, if the first four LED element have a range of 0-1 then the four least significant bits of
+			// this value will be sent to these first four LED elements, etc.
+			int device_value = pass;
 
-        element = CFArrayGetValueAtIndex(elements, i);
+			// iterate over all the elements
+			CFIndex elementIndex, elementCount = CFArrayGetCount( elementCFArrayRef );
+			for ( elementIndex = 0; elementIndex < elementCount; elementIndex++ ) {
+				IOHIDElementRef tIOHIDElementRef = ( IOHIDElementRef ) CFArrayGetValueAtIndex( elementCFArrayRef, elementIndex );
+				require( tIOHIDElementRef, next_element );
 
-        object = (CFDictionaryGetValue(element, CFSTR(kIOHIDElementCookieKey)));
-        if (object == 0 || CFGetTypeID(object) != CFNumberGetTypeID()) {
-            continue;
-        }
-        if (!CFNumberGetValue((CFNumberRef) object, kCFNumberLongType,
-                              &number)) {
-            continue;
-        }
-        cookie = (IOHIDElementCookie)number;
+				uint32_t usagePage = IOHIDElementGetUsagePage( tIOHIDElementRef );
 
-        object = CFDictionaryGetValue(element, CFSTR(kIOHIDElementUsageKey));
-        if (object == 0 || CFGetTypeID(object) != CFNumberGetTypeID()) {
-            continue;
-        }
-        if (!CFNumberGetValue((CFNumberRef)object, kCFNumberLongType,
-                              &number)) {
-            continue;
-        }
-        usage = number;
+				// if this isn't an LED element...
+				if ( kHIDPage_LEDs != usagePage ) {
+					continue;	// ...skip it
+				}
 
-        object = CFDictionaryGetValue(element,CFSTR(kIOHIDElementUsagePageKey));
-        if (object == 0 || CFGetTypeID(object) != CFNumberGetTypeID()) {
-            continue;
-        }
-        if (!CFNumberGetValue((CFNumberRef)object, kCFNumberLongType,
-                              &number)) {
-            continue;
-        }
-        usagePage = number;
+				uint32_t usage = IOHIDElementGetUsage( tIOHIDElementRef );
+				IOHIDElementType tIOHIDElementType = IOHIDElementGetType( tIOHIDElementRef );
 
-        if (usagePage == kHIDPage_LEDs) {
-            switch (usage) {
+				//printf( "		 element = %p (page: %d, usage: %d, type: %d ).\n",
+				//	   tIOHIDElementRef, usagePage, usage, tIOHIDElementType );
 
-            case kHIDUsage_LED_NumLock:
-                numlock_cookie = cookie;
-                break;
+				// get the logical mix/max for this LED element
+				CFIndex minCFIndex = IOHIDElementGetLogicalMin( tIOHIDElementRef );
+				CFIndex maxCFIndex = IOHIDElementGetLogicalMax( tIOHIDElementRef );
 
-            case kHIDUsage_LED_CapsLock:
-                capslock_cookie = cookie;
-                break;
+				// calculate the range
+				CFIndex modCFIndex = maxCFIndex - minCFIndex + 1;
 
-            default:
-                break;
-            }
-        }
-    }
+				// compute the value for this LED element
+				//CFIndex tCFIndex = minCFIndex + ( device_value % modCFIndex );
+				CFIndex tCFIndex = led_value;
+				device_value /= modCFIndex;
 
-    return;
-}
+				//printf( "			 value = 0x%08lX.\n", tCFIndex );
 
-void
-create_hid_interface(io_object_t hidDevice, IOHIDDeviceInterface*** hdi)
-{
-    IOCFPlugInInterface** plugInInterface = NULL;
+				uint64_t timestamp = 0; // create the IO HID Value to be sent to this LED element
+				IOHIDValueRef tIOHIDValueRef = IOHIDValueCreateWithIntegerValue( kCFAllocatorDefault, tIOHIDElementRef, timestamp, tCFIndex );
+				if ( tIOHIDValueRef ) {
+					// now set it on the device
+					tIOReturn = IOHIDDeviceSetValue( tIOHIDDeviceRefs[deviceIndex], tIOHIDElementRef, tIOHIDValueRef );
+					CFRelease( tIOHIDValueRef );
+					require_noerr( tIOReturn, next_element );
+					delayFlag = TRUE;	// set this TRUE so we'll delay before changing our LED values again
+				}
+			next_element:	;
+				continue;
+			}
+			CFRelease( elementCFArrayRef );
+		next_device: ;
+			continue;
+		}
 
-    io_name_t className;
-    HRESULT   plugInResult = S_OK;
-    SInt32    score = 0;
-    IOReturn  ioReturnValue = kIOReturnSuccess;
+		// if we found an LED we'll delay before continuing
+		//if ( delayFlag ) {
+		//	usleep( 500000 ); // sleep one half second
+		//}
 
-    ioReturnValue = IOObjectGetClass(hidDevice, className);
+		// if the mouse is down…
+		//if (GetCurrentButtonState()) {
+		//	break;	// abort pass loop
+		//}
+	//}						  // next pass
 
-    //print_errmsg_if_io_err(ioReturnValue, "Failed to get class name.");
+	if ( matchingCFDictRef ) {
+		CFRelease( matchingCFDictRef );
+	}
+Oops:	;
+	if ( tIOHIDDeviceRefs ) {
+		free(tIOHIDDeviceRefs);
+	}
 
-    ioReturnValue = IOCreatePlugInInterfaceForService(
-                        hidDevice, kIOHIDDeviceUserClientTypeID,
-                        kIOCFPlugInInterfaceID, &plugInInterface, &score);
-    if (ioReturnValue != kIOReturnSuccess) {
-        return;
-    }
-
-    plugInResult = (*plugInInterface)->QueryInterface(plugInInterface,
-                     CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID), (LPVOID)hdi);
-    //print_errmsg_if_err(plugInResult != S_OK,
-    //                    "Failed to create device interface.\n");
-
-    (*plugInInterface)->Release(plugInInterface);
-}
-
-int
-manipulate_led(UInt32 whichLED, SInt32 value)
-{
-    io_service_t           hidService = (io_service_t)0;
-    io_object_t            hidDevice = (io_object_t)0;
-    IOHIDDeviceInterface **hidDeviceInterface = NULL;
-    IOReturn               ioReturnValue = kIOReturnError;
-    IOHIDElementCookie     theCookie = (IOHIDElementCookie)0;
-    IOHIDEventStruct       theEvent;
-
-    if (!(hidService = find_a_keyboard())) {
-        fprintf(stderr, "No keyboard found.\n");
-        return ioReturnValue;
-    }
-
-    hidDevice = (io_object_t)hidService;
-
-    create_hid_interface(hidDevice, &hidDeviceInterface);
-
-    find_led_cookies((IOHIDDeviceInterface122 **)hidDeviceInterface);
-
-    ioReturnValue = IOObjectRelease(hidDevice);
-    if (ioReturnValue != kIOReturnSuccess) {
-        goto out;
-    }
-
-    ioReturnValue = kIOReturnError;
-
-    if (hidDeviceInterface == NULL) {
-        fprintf(stderr, "Failed to create HID device interface.\n");
-        return ioReturnValue;
-    }
-
-    if (whichLED == kHIDUsage_LED_NumLock) {
-        theCookie = numlock_cookie;
-    } else if (whichLED == kHIDUsage_LED_CapsLock) {
-        theCookie = capslock_cookie;
-    }
-
-    if (theCookie == 0) {
-        fprintf(stderr, "Bad or missing LED cookie.\n");
-        goto out;
-    }
-
-    ioReturnValue = (*hidDeviceInterface)->open(hidDeviceInterface, 0);
-    if (ioReturnValue != kIOReturnSuccess) {
-        fprintf(stderr, "Failed to open HID device interface.\n");
-        goto out;
-    }
-
-    ioReturnValue = (*hidDeviceInterface)->getElementValue(hidDeviceInterface,
-                                               theCookie, &theEvent);
-    if (ioReturnValue != kIOReturnSuccess) {
-        (void)(*hidDeviceInterface)->close(hidDeviceInterface);
-        goto out;
-    }
-
-    //fprintf(stdout, "%s\n", (theEvent.value) ? "on" : "off");
-    if (value != -1) {
-        if (theEvent.value != value) {
-            theEvent.value = value;
-            ioReturnValue = (*hidDeviceInterface)->setElementValue(
-                                hidDeviceInterface, theCookie,
-                                &theEvent, 0, 0, 0, 0);
-            //if (ioReturnValue == kIOReturnSuccess) {
-            //    fprintf(stdout, "%s\n", (theEvent.value) ? "on" : "off");
-            //}
-        }
-    }
-
-    ioReturnValue = (*hidDeviceInterface)->close(hidDeviceInterface);
-
-out:
-    (void)(*hidDeviceInterface)->Release(hidDeviceInterface);
-
-    //return ioReturnValue;
-    return theEvent.value;
-}
+	if ( tIOHIDManagerRef ) {
+		CFRelease( tIOHIDManagerRef );
+	}
+	return 0;
+} /* main */
 
 VALUE MacLight = Qnil;
 
 void Init_maclight();
 
-VALUE method_capslock(int argc, VALUE *argv, VALUE self);
-VALUE  method_numlock(int argc, VALUE *argv, VALUE self);
+//VALUE method_capslock(int argc, VALUE *argv, VALUE self);
+//VALUE  method_numlock(int argc, VALUE *argv, VALUE self);
+VALUE  method_all_leds(int argc, VALUE *argv, VALUE self);
 
 void Init_maclight() {
   MacLight = rb_define_module("MacLight");
-  rb_define_singleton_method(MacLight, "capslock", method_capslock, -1);
-  rb_define_singleton_method(MacLight, "numlock", method_numlock, -1);
+  //rb_define_singleton_method(MacLight, "capslock", method_capslock, -1);
+  //rb_define_singleton_method(MacLight, "numlock", method_numlock, -1);
+  rb_define_singleton_method(MacLight, "all_leds", method_all_leds, -1);
 }
 
 VALUE kbd_led(UInt32 whichLED, int argc, VALUE *argv, VALUE klass) {
@@ -342,11 +302,15 @@ VALUE kbd_led(UInt32 whichLED, int argc, VALUE *argv, VALUE klass) {
   return manipulate_led(whichLED, set_to) ? Qtrue : Qfalse;
 }
 
-VALUE method_capslock(int argc, VALUE *argv, VALUE klass) {
-  return kbd_led(kHIDUsage_LED_CapsLock, argc, argv, klass);
+VALUE method_all_leds(int argc, VALUE *argv, VALUE klass) {
+  return kbd_led(-1, argc, argv, klass);
 }
 
-VALUE method_numlock(int argc, VALUE *argv, VALUE klass) {
-  return kbd_led(kHIDUsage_LED_NumLock, argc, argv, klass);
-}
+//VALUE method_capslock(int argc, VALUE *argv, VALUE klass) {
+//  return kbd_led(kHIDUsage_LED_CapsLock, argc, argv, klass);
+//}
+//
+//VALUE method_numlock(int argc, VALUE *argv, VALUE klass) {
+//  return kbd_led(kHIDUsage_LED_NumLock, argc, argv, klass);
+//}
 
