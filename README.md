@@ -1,4 +1,4 @@
-# MacLight [![Dependency Status](https://gemnasium.com/busyloop/maclight.png)](https://gemnasium.com/busyloop/maclight)
+# MacLight [![Dependency Status](https://gemnasium.com/busyloop/maclight.png)](https://gemnasium.com/busyloop/maclight) [![Gem Version](https://badge.fury.io/rb/maclight.svg)](https://badge.fury.io/rb/maclight)
 
 MacLight lets you control the keyboard LEDs on your Mac or Macbook.
 
