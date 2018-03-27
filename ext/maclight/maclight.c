@@ -127,13 +127,13 @@ int manipulate_led( int which_led, int led_value )
 
 	// create a IO HID Manager reference
 	IOHIDManagerRef tIOHIDManagerRef = IOHIDManagerCreate( kCFAllocatorDefault, kIOHIDOptionsTypeNone );
-	require( tIOHIDManagerRef, Oops );
+	__Require( tIOHIDManagerRef, Oops );
 
 	// Create a device matching dictionary
 	CFDictionaryRef matchingCFDictRef = hu_CreateMatchingDictionaryUsagePageUsage( TRUE,
 																				  kHIDPage_GenericDesktop,
 																				  kHIDUsage_GD_Keyboard );
-	require( matchingCFDictRef, Oops );
+	__Require( matchingCFDictRef, Oops );
 
 	// set the HID device matching dictionary
 	IOHIDManagerSetDeviceMatching( tIOHIDManagerRef, matchingCFDictRef );
@@ -144,11 +144,11 @@ int manipulate_led( int which_led, int led_value )
 
 	// Now open the IO HID Manager reference
 	IOReturn tIOReturn = IOHIDManagerOpen( tIOHIDManagerRef, kIOHIDOptionsTypeNone );
-	require_noerr( tIOReturn, Oops );
+	__Require_noErr( tIOReturn, Oops );
 
 	// and copy out its devices
 	CFSetRef deviceCFSetRef = IOHIDManagerCopyDevices( tIOHIDManagerRef );
-	require( deviceCFSetRef, Oops );
+	__Require( deviceCFSetRef, Oops );
 
 	// how many devices in the set?
 	CFIndex deviceIndex, deviceCount = CFSetGetCount( deviceCFSetRef );
@@ -168,7 +168,7 @@ int manipulate_led( int which_led, int led_value )
 
 	// before we get into the device loop we'll setup our element matching dictionary
 	matchingCFDictRef = hu_CreateMatchingDictionaryUsagePageUsage( FALSE, kHIDPage_LEDs, 0 );
-	require( matchingCFDictRef, Oops );
+	__Require( matchingCFDictRef, Oops );
 
 	int pass;	// do 256 passes
 	//for ( pass = 0; pass < 256; pass++ ) {
@@ -188,7 +188,7 @@ int manipulate_led( int which_led, int led_value )
 			CFArrayRef elementCFArrayRef = IOHIDDeviceCopyMatchingElements( tIOHIDDeviceRefs[deviceIndex],
 																		   matchingCFDictRef,
 																		   kIOHIDOptionsTypeNone );
-			require( elementCFArrayRef, next_device );
+			__Require( elementCFArrayRef, next_device );
 
 			// for each device on the system these values are divided by the value ranges of all LED elements found
 			// for example, if the first four LED element have a range of 0-1 then the four least significant bits of
@@ -199,7 +199,7 @@ int manipulate_led( int which_led, int led_value )
 			CFIndex elementIndex, elementCount = CFArrayGetCount( elementCFArrayRef );
 			for ( elementIndex = 0; elementIndex < elementCount; elementIndex++ ) {
 				IOHIDElementRef tIOHIDElementRef = ( IOHIDElementRef ) CFArrayGetValueAtIndex( elementCFArrayRef, elementIndex );
-				require( tIOHIDElementRef, next_element );
+				__Require( tIOHIDElementRef, next_element );
 
 				uint32_t usagePage = IOHIDElementGetUsagePage( tIOHIDElementRef );
 
@@ -234,7 +234,7 @@ int manipulate_led( int which_led, int led_value )
 					// now set it on the device
 					tIOReturn = IOHIDDeviceSetValue( tIOHIDDeviceRefs[deviceIndex], tIOHIDElementRef, tIOHIDValueRef );
 					CFRelease( tIOHIDValueRef );
-					require_noerr( tIOReturn, next_element );
+					__Require_noErr( tIOReturn, next_element );
 					delayFlag = TRUE;	// set this TRUE so we'll delay before changing our LED values again
 				}
 			next_element:	;
